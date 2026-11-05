@@ -3,8 +3,15 @@
  * Facilitates HTTP communication between Vite frontend and Spring Boot Student API
  */
 
-// Critical: Base API URL routing to the Spring Boot student endpoints. If misconfigured, all CRUD requests will target invalid paths and fail with 404 or connection refused errors.
-const API_BASE_URL = '/reyes/students';
+// Critical: Base API URL routing to the Spring Boot student endpoints with support for production cloud URLs (VITE_API_URL). If misconfigured, all CRUD requests will target invalid paths and fail with 404 or connection refused errors.
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) return '/reyes/students';
+  const cleanBase = envUrl.startsWith('http') ? envUrl : `https://${envUrl}`;
+  return `${cleanBase.replace(/\/$/, '')}/reyes/students`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Critical: Centralized HTTP response error validator. If misconfigured or bypassed, failed HTTP responses (e.g. 404, 500) will be incorrectly parsed as valid data and corrupt frontend application state.
 async function handleResponse(response) {

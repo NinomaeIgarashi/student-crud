@@ -1,0 +1,70 @@
+# Render Infrastructure as Code (Blueprint) Specification
+# Reference template based on: https://github.com/NinomaeIgarashi/my.youtube
+
+services:
+  # ==========================================
+  # FRONTEND: ViteJS + TailwindCSS Static Site
+  # ==========================================
+  # Critical: Static web service configuration for the React frontend client. If misconfigured, SPA page rewrites or production API connections will fail.
+  - type: web
+    name: student-frontend
+    runtime: static
+    rootDir: student-frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: student-api
+          property: host
+
+  # ==========================================
+  # BACKEND: Spring Boot REST API Web Service
+  # ==========================================
+  # Critical: Dockerized Spring Boot service running Java 21 connected to Render PostgreSQL. If misconfigured, API requests will fail and database handshake will be refused.
+  - type: web
+    name: student-api
+    runtime: docker
+    rootDir: student
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: DB_HOST
+        fromDatabase:
+          name: student-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: student-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: student-db
+          property: database
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: student-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: student-db
+          property: password
+
+# ==========================================
+# DATABASE: Managed PostgreSQL Instance
+# ==========================================
+databases:
+  - name: student-db
+    databaseName: db_student
+    user: postgres
+    plan: free
