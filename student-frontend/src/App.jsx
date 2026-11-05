@@ -4,7 +4,7 @@ import { StudentForm } from './components/StudentForm';
 import { StudentTable } from './components/StudentTable';
 import { StatsCards } from './components/StatsCards';
 import { NotificationBanner } from './components/NotificationBanner';
-import { School, Database, CheckCircle2, AlertOctagon, Settings, Link2, RotateCcw } from 'lucide-react';
+import { School, Database, CheckCircle2, AlertOctagon, Settings, Link2, RotateCcw, Loader2 } from 'lucide-react';
 
 // App: Main root component coordinating Student CRUD application lifecycle and data flow
 export function App() {
@@ -17,6 +17,7 @@ export function App() {
   const [backendStatus, setBackendStatus] = useState('connecting');
   const [showConfig, setShowConfig] = useState(false);
   const [customUrlInput, setCustomUrlInput] = useState(getSavedApiUrl());
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const formSectionRef = useRef(null);
 
@@ -30,22 +31,36 @@ export function App() {
     }
   }, []);
 
-  // Critical: Fetches all student records from the Spring Boot API upon mount or reload. If misconfigured, the student data table will fail to populate or stay in an endless loading state.
-  const loadStudents = useCallback(async () => {
+  // Critical: Fetches all student records from the Spring Boot API with automated cloud cold-start retry. If misconfigured, the student data table will fail to populate or stay in an endless loading state.
+  const loadStudents = useCallback(async (currentAttempt = 0) => {
     setIsLoading(true);
     try {
       const data = await studentApi.getAll();
       const studentList = Array.isArray(data) ? data : [];
       setStudents(studentList);
       setBackendStatus('connected');
+      setRetryAttempt(0);
     } catch (err) {
       setBackendStatus('error');
-      setShowConfig(true);
-      showNotification(
-        `Unable to reach Student API at ${getApiBaseUrl()}: ${err.message || 'Connection failed'}. You can paste your backend URL below to connect.`,
-        'error',
-        7000
-      );
+      if (currentAttempt < 4) {
+        const nextAttempt = currentAttempt + 1;
+        setRetryAttempt(nextAttempt);
+        showNotification(
+          `Connecting to backend at ${getApiBaseUrl()} (Render free-tier cold start takes ~30-50s). Retrying automatically (attempt ${nextAttempt} of 5)...`,
+          'info',
+          5500
+        );
+        setTimeout(() => {
+          loadStudents(nextAttempt);
+        }, 6000);
+      } else {
+        setShowConfig(true);
+        showNotification(
+          `Unable to reach Student API at ${getApiBaseUrl()}: ${err.message || 'Connection failed'}. Please verify backend service status below.`,
+          'error',
+          8000
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -53,7 +68,7 @@ export function App() {
 
   // Initial data load on component mount
   useEffect(() => {
-    loadStudents();
+    loadStudents(0);
   }, [loadStudents]);
 
   // Critical: Saves custom backend URL from input and triggers immediate data reload. If misconfigured, backend host updates will not persist across browser sessions.
@@ -61,14 +76,14 @@ export function App() {
     e.preventDefault();
     setApiUrl(customUrlInput);
     showNotification(`API URL updated to: ${getApiBaseUrl()}`, 'info', 3000);
-    loadStudents();
+    loadStudents(0);
   };
 
   const handleResetApiUrl = () => {
     setApiUrl('');
     setCustomUrlInput('');
-    showNotification('API URL reset to local default (/reyes/students)', 'info', 3000);
-    loadStudents();
+    showNotification('API URL reset to auto-detected default', 'info', 3000);
+    loadStudents(0);
   };
 
   // Critical: Handles saving student entity by either dispatching HTTP POST (create) or HTTP PUT (update). If misconfigured, form submits will corrupt data or fail to persist changes to the database.
@@ -162,7 +177,7 @@ export function App() {
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                 backendStatus === 'connected'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                  : backendStatus === 'connecting'
+                  : backendStatus === 'connecting' || retryAttempt > 0
                   ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
                   : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
               }`}
@@ -172,12 +187,15 @@ export function App() {
               <span>
                 {backendStatus === 'connected'
                   ? 'API: Connected'
+                  : retryAttempt > 0
+                  ? `API: Waking Up (Attempt ${retryAttempt}/5)`
                   : backendStatus === 'connecting'
                   ? 'API: Connecting...'
                   : 'API: Disconnected (Configure)'}
               </span>
               {backendStatus === 'connected' && <CheckCircle2 className="w-3.5 h-3.5" />}
-              {backendStatus === 'error' && <AlertOctagon className="w-3.5 h-3.5" />}
+              {retryAttempt > 0 && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />}
+              {backendStatus === 'error' && retryAttempt === 0 && <AlertOctagon className="w-3.5 h-3.5" />}
               <Settings className="w-3.5 h-3.5 ml-1 text-slate-400" />
             </button>
           </div>
@@ -214,13 +232,13 @@ export function App() {
                 type="button"
                 onClick={handleResetApiUrl}
                 className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-600 text-xs font-medium rounded-xl border border-slate-300 transition cursor-pointer flex items-center justify-center gap-1.5"
-                title="Reset to local proxy default (/reyes/students)"
+                title="Reset to auto-detected default"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset
+                <RotateCcw className="w-3.5 h-3.5" /> Auto-Detect
               </button>
             </form>
             <p className="text-xs text-slate-500 mt-2">
-              💡 <strong>Render Deployment Tip:</strong> Copy the public URL of your <code>student-api</code> web service from the Render Dashboard and paste it here to connect directly.
+              ⚡ <strong>Auto-Discovery:</strong> The frontend automatically resolves <code>student-api</code> when hosted on Render. You can also paste an explicit backend URL above if running custom domains.
             </p>
           </div>
         )}
@@ -253,7 +271,7 @@ export function App() {
           editingStudentId={editingStudent?.id}
           onEditStudent={handleEditSelect}
           onDeleteStudent={handleDeleteStudent}
-          onRefresh={loadStudents}
+          onRefresh={() => loadStudents(0)}
           isDeletingId={isDeletingId}
         />
 

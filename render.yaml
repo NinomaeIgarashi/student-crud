@@ -20,7 +20,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: VITE_API_URL
-        sync: false
+        value: https://student-api-swv1.onrender.com
 
   # ==========================================
   # BACKEND: Spring Boot REST API Web Service

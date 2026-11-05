@@ -3,8 +3,11 @@
  * Facilitates HTTP communication between Vite frontend and Spring Boot Student API
  */
 
-// Critical: Base API URL routing to the Spring Boot student endpoints with dynamic resolution (localStorage override > VITE_API_URL > local dev proxy). If misconfigured, all CRUD requests will target invalid paths and fail with 404 or connection refused errors.
+const PRODUCTION_BACKEND_URL = 'https://student-api-swv1.onrender.com';
+
+// Critical: Base API URL routing to the Spring Boot student endpoints with dynamic resolution (localStorage override > VITE_API_URL > Render production URL > local dev proxy). If misconfigured, all CRUD requests will target invalid paths and fail with 404 or connection refused errors.
 export const getApiBaseUrl = () => {
+  // 1. User manual override in localStorage
   try {
     const saved = localStorage.getItem('STUDENT_API_URL');
     if (saved && saved.trim()) {
@@ -15,12 +18,19 @@ export const getApiBaseUrl = () => {
     // Ignore localStorage access issues
   }
 
+  // 2. Build-time environment variable (if explicitly configured)
   const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl && envUrl.trim()) {
+  if (envUrl && envUrl.trim() && !envUrl.includes('localhost')) {
     const clean = envUrl.trim().startsWith('http') ? envUrl.trim() : `https://${envUrl.trim()}`;
     return `${clean.replace(/\/$/, '')}/reyes/students`;
   }
 
+  // 3. Automatic Render Cloud Discovery: When running on onrender.com, target live backend
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    return `${PRODUCTION_BACKEND_URL}/reyes/students`;
+  }
+
+  // 4. Default for local development (uses Vite dev server proxy to localhost:8080)
   return '/reyes/students';
 };
 
@@ -41,10 +51,18 @@ export const setApiUrl = (url) => {
 // getSavedApiUrl: Retrieves stored or environment backend URL for UI display
 export const getSavedApiUrl = () => {
   try {
-    return localStorage.getItem('STUDENT_API_URL') || import.meta.env.VITE_API_URL || '';
-  } catch {
-    return '';
+    const saved = localStorage.getItem('STUDENT_API_URL');
+    if (saved) return saved;
+  } catch {}
+
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && !envUrl.includes('localhost')) return envUrl;
+
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    return PRODUCTION_BACKEND_URL;
   }
+
+  return '';
 };
 
 // Critical: Centralized HTTP response error validator. If misconfigured or bypassed, failed HTTP responses (e.g. 404, 500) will be incorrectly parsed as valid data and corrupt frontend application state.
