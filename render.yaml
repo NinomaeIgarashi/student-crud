@@ -63,8 +63,10 @@ services:
 # ==========================================
 # DATABASE: Managed PostgreSQL Instance
 # ==========================================
+# Note: 'postgres' is a reserved system superuser name on Render and is rejected.
+# Using 'student_user' or leaving Render to auto-generate a valid user name resolves this.
 databases:
   - name: student-db
     databaseName: db_student
-    user: postgres
+    user: student_user
     plan: free
