@@ -20,10 +20,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: student-api
-          property: host
+        sync: false
 
   # ==========================================
   # BACKEND: Spring Boot REST API Web Service

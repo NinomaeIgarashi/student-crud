@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { studentApi } from './api/studentApi';
+import { studentApi, getApiBaseUrl, getSavedApiUrl, setApiUrl } from './api/studentApi';
 import { StudentForm } from './components/StudentForm';
 import { StudentTable } from './components/StudentTable';
 import { StatsCards } from './components/StatsCards';
 import { NotificationBanner } from './components/NotificationBanner';
-import { School, Database, CheckCircle2, AlertOctagon } from 'lucide-react';
+import { School, Database, CheckCircle2, AlertOctagon, Settings, Link2, RotateCcw } from 'lucide-react';
 
 // App: Main root component coordinating Student CRUD application lifecycle and data flow
 export function App() {
@@ -15,6 +15,8 @@ export function App() {
   const [editingStudent, setEditingStudent] = useState(null);
   const [notification, setNotification] = useState(null);
   const [backendStatus, setBackendStatus] = useState('connecting');
+  const [showConfig, setShowConfig] = useState(false);
+  const [customUrlInput, setCustomUrlInput] = useState(getSavedApiUrl());
 
   const formSectionRef = useRef(null);
 
@@ -38,8 +40,9 @@ export function App() {
       setBackendStatus('connected');
     } catch (err) {
       setBackendStatus('error');
+      setShowConfig(true);
       showNotification(
-        `Unable to reach Student API: ${err.message || 'Make sure Spring Boot backend is running on port 8080'}.`,
+        `Unable to reach Student API at ${getApiBaseUrl()}: ${err.message || 'Connection failed'}. You can paste your backend URL below to connect.`,
         'error',
         7000
       );
@@ -52,6 +55,21 @@ export function App() {
   useEffect(() => {
     loadStudents();
   }, [loadStudents]);
+
+  // Critical: Saves custom backend URL from input and triggers immediate data reload. If misconfigured, backend host updates will not persist across browser sessions.
+  const handleSaveApiUrl = (e) => {
+    e.preventDefault();
+    setApiUrl(customUrlInput);
+    showNotification(`API URL updated to: ${getApiBaseUrl()}`, 'info', 3000);
+    loadStudents();
+  };
+
+  const handleResetApiUrl = () => {
+    setApiUrl('');
+    setCustomUrlInput('');
+    showNotification('API URL reset to local default (/reyes/students)', 'info', 3000);
+    loadStudents();
+  };
 
   // Critical: Handles saving student entity by either dispatching HTTP POST (create) or HTTP PUT (update). If misconfigured, form submits will corrupt data or fail to persist changes to the database.
   const handleSaveStudent = async (formData) => {
@@ -137,30 +155,75 @@ export function App() {
             </div>
           </div>
 
-          {/* Backend Status Indicator */}
+          {/* Backend Status & API Settings Toggle */}
           <div className="flex items-center gap-2 self-start md:self-auto">
-            <div
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${
+            <button
+              onClick={() => setShowConfig((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
                 backendStatus === 'connected'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                   : backendStatus === 'connecting'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                  : 'bg-rose-50 text-rose-700 border-rose-200'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
               }`}
+              title="Click to view or edit backend connection settings"
             >
               <Database className="w-3.5 h-3.5" />
               <span>
                 {backendStatus === 'connected'
-                  ? 'API: Connected (:8080)'
+                  ? 'API: Connected'
                   : backendStatus === 'connecting'
                   ? 'API: Connecting...'
-                  : 'API: Disconnected'}
+                  : 'API: Disconnected (Configure)'}
               </span>
               {backendStatus === 'connected' && <CheckCircle2 className="w-3.5 h-3.5" />}
               {backendStatus === 'error' && <AlertOctagon className="w-3.5 h-3.5" />}
-            </div>
+              <Settings className="w-3.5 h-3.5 ml-1 text-slate-400" />
+            </button>
           </div>
         </header>
+
+        {/* Non-Modal In-Page API Connection Settings Banner */}
+        {showConfig && (
+          <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 sm:p-5 shadow-sm animate-fadeIn">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-blue-200/60">
+              <div className="flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-blue-600" />
+                <h3 className="text-sm font-bold text-blue-900">Backend API Connection Manager</h3>
+              </div>
+              <span className="text-xs font-mono text-slate-600 bg-white px-2 py-0.5 rounded border border-blue-200">
+                Active Endpoint: {getApiBaseUrl()}
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveApiUrl} className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={customUrlInput}
+                onChange={(e) => setCustomUrlInput(e.target.value)}
+                placeholder="e.g. https://student-api.onrender.com"
+                className="flex-1 px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Link2 className="w-3.5 h-3.5" /> Connect API
+              </button>
+              <button
+                type="button"
+                onClick={handleResetApiUrl}
+                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-600 text-xs font-medium rounded-xl border border-slate-300 transition cursor-pointer flex items-center justify-center gap-1.5"
+                title="Reset to local proxy default (/reyes/students)"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reset
+              </button>
+            </form>
+            <p className="text-xs text-slate-500 mt-2">
+              💡 <strong>Render Deployment Tip:</strong> Copy the public URL of your <code>student-api</code> web service from the Render Dashboard and paste it here to connect directly.
+            </p>
+          </div>
+        )}
 
         {/* Global In-Page Non-Modal Notification Banner */}
         {notification && (
@@ -196,8 +259,7 @@ export function App() {
 
         {/* Footer */}
         <footer className="text-center py-4 text-xs text-slate-400">
-          Student CRUD System &bull; Course: WMD3A &bull; API endpoint:{' '}
-          <code className="font-mono text-slate-500">/reyes/students</code>
+          Student CRUD System &bull; Course: WMD3A &bull; Active API: <code className="font-mono text-slate-500">{getApiBaseUrl()}</code>
         </footer>
       </div>
     </div>
