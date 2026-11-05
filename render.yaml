@@ -23,7 +23,7 @@ services:
         fromService:
           type: web
           name: student-api
-          property: host
+          property: url
 
   # ==========================================
   # BACKEND: Spring Boot REST API Web Service

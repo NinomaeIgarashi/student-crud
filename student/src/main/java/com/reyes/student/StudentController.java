@@ -8,8 +8,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
 
-// Critical: Enables Cross-Origin Resource Sharing (CORS) for external frontend clients. If misconfigured, direct frontend requests will be rejected by browser CORS policy.
-@CrossOrigin(origins = "*")
+// Critical: Enables Cross-Origin Resource Sharing (CORS) across all origins and REST methods. If misconfigured, PUT, DELETE, or preflight requests will be rejected by browser security.
+@CrossOrigin(origins = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 @Controller
 @RequestMapping(path="/reyes/students")
 public class StudentController {
